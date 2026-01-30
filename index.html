@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SecureShare | Emad Alkahale</title>
+    
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* DEFAULT: DARK MODE (Hacker Green) */
+            --bg-color: #050505;
+            --card-bg: #111111;
+            --primary: #00ff41; /* Matrix Green */
+            --primary-dim: rgba(0, 255, 65, 0.1);
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --border: #333;
+            --shadow: 0 4px 20px rgba(0, 255, 65, 0.15);
+        }
+
+        [data-theme="light"] {
+            /* LIGHT MODE (Professional) */
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --primary: #006400; /* Dark Green */
+            --primary-dim: rgba(0, 100, 0, 0.05);
+            --text-main: #333333;
+            --text-muted: #666;
+            --border: #ddd;
+            --shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            padding-bottom: 100px; /* Space for footer */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* HEADER */
+        header {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h1 { margin: 0; font-weight: 300; font-size: 1.5rem; letter-spacing: 1px; }
+        h1 span { color: var(--primary); font-weight: bold; text-shadow: 0 0 10px var(--primary-dim); }
+
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        /* CONTAINER */
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* CARDS */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: 0.3s;
+        }
+
+        .card h3 { 
+            margin-top: 0; 
+            color: var(--primary); 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            font-size: 1.1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        /* QR & ID */
+        #qrcode {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            width: fit-content;
+            margin: 15px auto;
+        }
+        
+        .id-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px dashed var(--primary);
+            color: var(--primary);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            text-align: center;
+            font-size: 0.9rem;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        [data-theme="light"] .id-box { background: rgba(0,0,0,0.05); }
+
+        /* BUTTONS (Mobile Friendly) */
+        button.action-btn {
+            width: 100%;
+            padding: 15px; /* Taller for touch */
+            background: var(--primary);
+            color: #000; /* Black text on green looks best */
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px var(--primary-dim);
+        }
+        button.action-btn:active { transform: scale(0.98); }
+        [data-theme="light"] button.action-btn { color: white; }
+
+        /* INPUTS */
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+
+        /* ABOUT ME FOOTER */
+        .about-me {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+            width: 100%;
+        }
+        .profile-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            margin-top: 10px;
+        }
+        .uni-name { color: var(--primary); font-weight: bold; }
+
+        /* PROGRESS BAR */
+        .progress-container {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            margin-top: 15px;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+    </style>
+</head>
+<body data-theme="dark">
+
+    <header>
+        <h1>Secure<span>Share</span></h1>
+        <button class="theme-toggle" onclick="toggleTheme()">
+            <i class="fas fa-sun"></i>
+        </button>
+    </header>
+
+    <div class="container">
+
+        <div class="card">
+            <h3><i class="fas fa-wifi"></i> Connection</h3>
+            
+            <div id="qrcode"></div>
+            <p style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin:5px 0;">Tap ID to Copy Link</p>
+            
+            <div class="id-box" id="my-id" onclick="copyLink()">
+                Generating ID...
+            </div>
+            
+            <div id="copy-msg" style="text-align:center; color:var(--primary); height:20px; font-size:0.8rem;"></div>
+        </div>
+
+        <div class="card" id="manual-connect">
+            <h3><i class="fas fa-link"></i> Connect to Friend</h3>
+            <input type="text" id="partner-id" placeholder="Paste their ID here">
+            <button class="action-btn" onclick="connectToPeer()">Connect</button>
+        </div>
+
+        <div class="card" id="transfer-zone" style="opacity:0.5; pointer-events:none;">
+            <h3>
+                <i class="fas fa-file-shield"></i> Transfer 
+                <span id="status-badge" style="font-size:0.7rem; margin-left:auto; background:var(--border); padding:2px 8px; border-radius:4px; color:var(--text-muted)">Offline</span>
+            </h3>
+
+            <div id="sender-ui">
+                <input type="file" id="file-input" style="margin-bottom:10px; width:100%;">
+                <button class="action-btn" onclick="startHandshake()" id="send-btn">
+                    <i class="fas fa-paper-plane"></i> Send File
+                </button>
+            </div>
+
+            <div id="receiver-ui" style="display:none; text-align:center;">
+                <p>Incoming: <strong id="file-name" style="color:var(--primary)">...</strong></p>
+                <p id="file-size" style="font-size:0.8rem; color:var(--text-muted)"></p>
+                <button class="action-btn" onclick="acceptFile()">
+                    <i class="fas fa-download"></i> Save to Device
+                </button>
+            </div>
+
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <p id="status-text" style="text-align:center; font-size:0.8rem; margin-top:5px;"></p>
+        </div>
+
+        <div class="about-me">
+            <p style="margin:0; font-size:1.1rem; font-weight:bold;">Emad Alkahale</p>
+            <div class="profile-badge">
+                <i class="fas fa-graduation-cap uni-name"></i>
+                <span>Ajman University</span>
+            </div>
+            <p style="font-size:0.8rem; margin-top:5px;">ID: 202211404 | Security & Network</p>
+        </div>
+
+    </div>
+
+    <div id="logs" style="display:none"></div>
+
+    <script>
+        // --- THEME TOGGLE ---
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.querySelector('.theme-toggle i');
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                icon.className = 'fas fa-moon';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+            }
+        }
+
+        // --- P2P LOGIC ---
+        const peer = new Peer();
+        let conn = null;
+        let fileWriter = null;
+        let fileToSend = null;
+        let expectedSize = 0, receivedSize = 0;
+
+        function updateStatus(isConnected) {
+            const zone = document.getElementById('transfer-zone');
+            const badge = document.getElementById('status-badge');
+            const manual = document.getElementById('manual-connect');
+            
+            if (isConnected) {
+                zone.style.opacity = "1";
+                zone.style.pointerEvents = "all";
+                badge.innerText = "ONLINE";
+                badge.style.background = "var(--primary)";
+                badge.style.color = "#000";
+                manual.style.display = "none";
+            } else {
+                zone.style.opacity = "0.5";
+                zone.style.pointerEvents = "none";
+                badge.innerText = "OFFLINE";
+                badge.style.background = "var(--border)";
+                badge.style.color = "var(--text-muted)";
+                manual.style.display = "block";
+            }
+        }
+
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+            
+            // Magic Link & QR
+            const link = `${window.location.href.split('?')[0]}?dest=${id}`;
+            new QRCode(document.getElementById("qrcode"), { text: link, width: 128, height: 128 });
+
+            // Auto-Connect
+            const urlParams = new URLSearchParams(window.location.search);
+            const dest = urlParams.get('dest');
+            if (dest && dest !== id) {
+                setTimeout(() => { conn = peer.connect(dest); setupEvents(); }, 1000);
+            }
+        });
+
+        peer.on('connection', (c) => { conn = c; setupEvents(); });
+
+        function connectToPeer() {
+            const id = document.getElementById('partner-id').value;
+            if(id) { conn = peer.connect(id); setupEvents(); }
+        }
+
+        function setupEvents() {
+            conn.on('open', () => updateStatus(true));
+            conn.on('close', () => updateStatus(false));
+            conn.on('data', handleData);
+        }
+
+        function copyLink() {
+            const id = document.getElementById('my-id').innerText;
+            const link = `${window.location.href.split('?')[0]}?dest=${id}`;
+            navigator.clipboard.writeText(link);
+            const msg = document.getElementById('copy-msg');
+            msg.innerText = "Link Copied!";
+            setTimeout(() => msg.innerText = "", 2000);
+        }
+
+        // --- TRANSFER LOGIC ---
+        function startHandshake() {
+            fileToSend = document.getElementById('file-input').files[0];
+            if(!fileToSend) return;
+            conn.send({ type: 'meta', name: fileToSend.name, size: fileToSend.size });
+            document.getElementById('send-btn').innerText = "Waiting...";
+        }
+
+        async function startUpload() {
+            document.getElementById('progress-container').style.display = "block";
+            const bar = document.getElementById('progress-bar');
+            const CHUNK = 16 * 1024;
+            let offset = 0;
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                if(conn.dataChannel.bufferedAmount > 10000000) await new Promise(r => setTimeout(r, 50));
+                conn.send(e.target.result);
+                offset += e.target.result.byteLength;
+                bar.style.width = (offset/fileToSend.size)*100 + "%";
+                
+                if(offset < fileToSend.size) {
+                    reader.readAsArrayBuffer(fileToSend.slice(offset, offset + CHUNK));
+                } else {
+                    document.getElementById('status-text').innerText = "Sent!";
+                    document.getElementById('send-btn').innerText = "Send File";
+                }
+            };
+            reader.readAsArrayBuffer(fileToSend.slice(0, CHUNK));
+        }
+
+        async function handleData(data) {
+            if(data === 'ack') { startUpload(); return; }
+            
+            if(data.type === 'meta') {
+                document.getElementById('sender-ui').style.display = 'none';
+                document.getElementById('receiver-ui').style.display = 'block';
+                document.getElementById('file-name').innerText = data.name;
+                document.getElementById('file-size').innerText = (data.size/1024/1024).toFixed(1) + " MB";
+                expectedSize = data.size; receivedSize = 0;
+                return;
+            }
+
+            if(fileWriter) {
+                await fileWriter.write(data);
+                receivedSize += data.byteLength;
+                document.getElementById('progress-container').style.display = "block";
+                document.getElementById('progress-bar').style.width = (receivedSize/expectedSize)*100 + "%";
+                
+                if(receivedSize === expectedSize) {
+                    await fileWriter.close();
+                    fileWriter = null;
+                    document.getElementById('status-text').innerText = "Saved!";
+                    setTimeout(() => {
+                        document.getElementById('sender-ui').style.display = 'block';
+                        document.getElementById('receiver-ui').style.display = 'none';
+                        document.getElementById('progress-container').style.display = "none";
+                    }, 3000);
+                }
+            }
+        }
+
+        async function acceptFile() {
+            const handle = await window.showSaveFilePicker({ suggestedName: document.getElementById('file-name').innerText });
+            fileWriter = await handle.createWritable();
+            conn.send('ack');
+        }
+    </script>
+</body>
+</html>
