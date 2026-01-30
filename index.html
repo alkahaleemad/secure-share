@@ -361,27 +361,50 @@
             document.getElementById('send-btn').innerText = "Waiting...";
         }
 
-        async function startUpload() {
+       async function startUpload() {
             document.getElementById('progress-container').style.display = "block";
             const bar = document.getElementById('progress-bar');
-            const CHUNK = 16 * 1024;
+            const status = document.getElementById('status-text');
+            
+            // ⚠️ FIX 1: Smaller Chunks (16KB is the "Golden Number" for WebRTC)
+            const CHUNK = 16 * 1024; 
             let offset = 0;
             const reader = new FileReader();
 
             reader.onload = async (e) => {
-                if(conn.dataChannel.bufferedAmount > 10000000) await new Promise(r => setTimeout(r, 50));
+                // ⚠️ FIX 2: THE TRAFFIC COP
+                // Old code waited for 10MB. That is way too much for an iPhone.
+                // New code waits if there is ANY backlog (> 0).
+                // This ensures we NEVER overwhelm the phone.
+                while (conn.dataChannel.bufferedAmount > 0) {
+                    await new Promise(r => setTimeout(r, 5)); // Wait 5ms and check again
+                }
+
+                try {
+                    conn.send(e.target.result);
+                } catch (err) {
+                    console.log("Congestion drop, retrying...");
+                    await new Promise(r => setTimeout(r, 50));
+                    conn.send(e.target.result);
+                }
                 
-                conn.send(e.target.result);
                 offset += e.target.result.byteLength;
-                bar.style.width = (offset/fileToSend.size)*100 + "%";
                 
+                // Update UI every 1% (Don't spam the DOM every chunk)
+                const percent = (offset/fileToSend.size)*100;
+                bar.style.width = percent + "%";
+                status.innerText = `Sending: ${Math.floor(percent)}%`;
+
                 if(offset < fileToSend.size) {
+                    // Read next chunk
                     reader.readAsArrayBuffer(fileToSend.slice(offset, offset + CHUNK));
                 } else {
-                    document.getElementById('status-text').innerText = "Sent!";
-                    document.getElementById('send-btn').innerText = "Send Another File";
+                    status.innerText = "Finalizing...";
+                    document.getElementById('send-btn').innerText = "Done!";
                 }
             };
+            
+            // Start the loop
             reader.readAsArrayBuffer(fileToSend.slice(0, CHUNK));
         }
 
