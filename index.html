@@ -42,7 +42,7 @@
             color: var(--text-main);
             margin: 0;
             padding: 20px;
-            padding-bottom: 100px; /* Space for footer */
+            padding-bottom: 100px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -130,12 +130,12 @@
         }
         [data-theme="light"] .id-box { background: rgba(0,0,0,0.05); }
 
-        /* BUTTONS (Mobile Friendly) */
+        /* BUTTONS */
         button.action-btn {
             width: 100%;
-            padding: 15px; /* Taller for touch */
+            padding: 15px;
             background: var(--primary);
-            color: #000; /* Black text on green looks best */
+            color: #000;
             border: none;
             border-radius: 10px;
             font-weight: bold;
@@ -201,7 +201,6 @@
             width: 0%;
             transition: width 0.1s;
         }
-
     </style>
 </head>
 <body data-theme="dark">
@@ -217,14 +216,9 @@
 
         <div class="card">
             <h3><i class="fas fa-wifi"></i> Connection</h3>
-            
             <div id="qrcode"></div>
             <p style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin:5px 0;">Tap ID to Copy Link</p>
-            
-            <div class="id-box" id="my-id" onclick="copyLink()">
-                Generating ID...
-            </div>
-            
+            <div class="id-box" id="my-id" onclick="copyLink()">Generating ID...</div>
             <div id="copy-msg" style="text-align:center; color:var(--primary); height:20px; font-size:0.8rem;"></div>
         </div>
 
@@ -291,9 +285,15 @@
         // --- P2P LOGIC ---
         const peer = new Peer();
         let conn = null;
-        let fileWriter = null;
+        
+        // TRANSFER STATE
+        let fileWriter = null;      // For Desktop
+        let fileChunks = [];        // For Mobile
+        let isMobileMode = false;   
+        
         let fileToSend = null;
         let expectedSize = 0, receivedSize = 0;
+        let fileName = "";
 
         function updateStatus(isConnected) {
             const zone = document.getElementById('transfer-zone');
@@ -320,7 +320,7 @@
         peer.on('open', (id) => {
             document.getElementById('my-id').innerText = id;
             
-            // Magic Link & QR
+            // Generate QR
             const link = `${window.location.href.split('?')[0]}?dest=${id}`;
             new QRCode(document.getElementById("qrcode"), { text: link, width: 128, height: 128 });
 
@@ -354,7 +354,6 @@
             setTimeout(() => msg.innerText = "", 2000);
         }
 
-        // --- TRANSFER LOGIC ---
         function startHandshake() {
             fileToSend = document.getElementById('file-input').files[0];
             if(!fileToSend) return;
@@ -371,6 +370,7 @@
 
             reader.onload = async (e) => {
                 if(conn.dataChannel.bufferedAmount > 10000000) await new Promise(r => setTimeout(r, 50));
+                
                 conn.send(e.target.result);
                 offset += e.target.result.byteLength;
                 bar.style.width = (offset/fileToSend.size)*100 + "%";
@@ -379,7 +379,7 @@
                     reader.readAsArrayBuffer(fileToSend.slice(offset, offset + CHUNK));
                 } else {
                     document.getElementById('status-text').innerText = "Sent!";
-                    document.getElementById('send-btn').innerText = "Send File";
+                    document.getElementById('send-btn').innerText = "Send Another File";
                 }
             };
             reader.readAsArrayBuffer(fileToSend.slice(0, CHUNK));
@@ -391,35 +391,66 @@
             if(data.type === 'meta') {
                 document.getElementById('sender-ui').style.display = 'none';
                 document.getElementById('receiver-ui').style.display = 'block';
-                document.getElementById('file-name').innerText = data.name;
+                
+                fileName = data.name;
+                document.getElementById('file-name').innerText = fileName;
                 document.getElementById('file-size').innerText = (data.size/1024/1024).toFixed(1) + " MB";
-                expectedSize = data.size; receivedSize = 0;
+                expectedSize = data.size; 
+                receivedSize = 0;
+                
+                fileChunks = [];
+                isMobileMode = false;
                 return;
             }
 
-            if(fileWriter) {
+            receivedSize += data.byteLength;
+            document.getElementById('progress-container').style.display = "block";
+            document.getElementById('progress-bar').style.width = (receivedSize/expectedSize)*100 + "%";
+
+            if (fileWriter) {
                 await fileWriter.write(data);
-                receivedSize += data.byteLength;
-                document.getElementById('progress-container').style.display = "block";
-                document.getElementById('progress-bar').style.width = (receivedSize/expectedSize)*100 + "%";
-                
-                if(receivedSize === expectedSize) {
+            } else {
+                fileChunks.push(data);
+            }
+
+            if(receivedSize === expectedSize) {
+                if (fileWriter) {
                     await fileWriter.close();
                     fileWriter = null;
-                    document.getElementById('status-text').innerText = "Saved!";
-                    setTimeout(() => {
-                        document.getElementById('sender-ui').style.display = 'block';
-                        document.getElementById('receiver-ui').style.display = 'none';
-                        document.getElementById('progress-container').style.display = "none";
-                    }, 3000);
+                } else {
+                    const blob = new Blob(fileChunks);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    fileChunks = [];
                 }
+                
+                document.getElementById('status-text').innerText = "Saved!";
+                setTimeout(() => {
+                    document.getElementById('sender-ui').style.display = 'block';
+                    document.getElementById('receiver-ui').style.display = 'none';
+                    document.getElementById('progress-container').style.display = "none";
+                }, 3000);
             }
         }
 
         async function acceptFile() {
-            const handle = await window.showSaveFilePicker({ suggestedName: document.getElementById('file-name').innerText });
-            fileWriter = await handle.createWritable();
-            conn.send('ack');
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({ suggestedName: fileName });
+                    fileWriter = await handle.createWritable();
+                    isMobileMode = false;
+                    conn.send('ack');
+                } catch (err) {
+                    console.log("Cancelled");
+                }
+            } else {
+                isMobileMode = true;
+                conn.send('ack');
+            }
         }
     </script>
 </body>
